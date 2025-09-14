@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>グループ分けツール</title>
+<style>
+:root{
+  --modal-bg:#111; --input-bg:#0f0f0f; --muted:#ccc; --accent:#d32f2f;
+}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"メイリオ",sans-serif;
+  padding:15px; background:#000; color:#fff;
+}
+h1{text-align:center;font-size:1.8em;margin-bottom:10px;}
+p{text-align:center;font-size:0.9em;color:var(--muted);margin-bottom:15px;}
+button{
+  display:block;width:100%;padding:12px;margin:10px 0;
+  font-size:16px;background:linear-gradient(135deg,var(--accent),#b71c1c);
+  color:white;border:none;border-radius:8px;cursor:pointer;
+}
+#result{
+  white-space:pre-wrap;background-color:#111;color:#fff;
+  padding:15px;border:1px solid #444;border-radius:10px;
+  margin-top:20px;font-family:"Courier New",monospace;font-size:15px;
+  max-height:300px;overflow-y:auto;
+}
+#nameGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.nameItem{display:flex;align-items:center;padding:6px 10px;border:1px solid #444;border-radius:6px;background:#111;color:#fff;}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:flex-start;overflow-y:auto;padding:24px 16px;box-sizing:border-box;}
+.modal{background:var(--modal-bg);padding:24px 18px;border-radius:12px;width:100%;max-width:400px;margin:24px auto;box-shadow:0 8px 30px rgba(0,0,0,0.6);box-sizing:border-box;}
+.modal h2{margin:0 0 12px 0;font-size:1.2em;}
+.modal input{width:calc(100% - 24px);height:48px;padding:10px 12px;margin:8px auto;display:block;border-radius:8px;border:1px solid #333;background:var(--input-bg);color:#fff;font-size:16px;line-height:1.2;}
+.modal input::placeholder{color:#9a9a9a;}
+.modal .info{font-size:0.95em;color:var(--muted);margin-top:6px;}
+.actions{display:flex;gap:12px;margin-top:16px;}
+.actions button{flex:1;border-radius:8px;font-size:15px;padding:10px;}
+.actions .cancel{background:#333;color:#fff;}
+.actions .submit{background:var(--accent);color:#fff;}
+</style>
+</head>
+<body>
+<h1>グループ分けツール</h1>
+<p>チェックを入れた人だけでグループ分けできます（出力時に「ちゃん」が付きます）</p>
+
+<button onclick="openModal()">👤 ＋新規登録</button>
+<button onclick="deleteSelectedMembers()">🗑 メンバー削除</button>
+
+<div id="nameGrid"></div>
+
+<button onclick="makeGroups()">👻 グループ作成</button>
+<button onclick="resetResult()">🗑 履歴リセット</button>
+<button onclick="copyResult()">✔️ 結果をコピー</button>
+
+<div id="result"></div>
+
+<!-- 新規登録モーダル -->
+<div id="modalOverlay" class="overlay">
+  <div class="modal">
+    <h2>🆕 メンバー登録</h2>
+    <input type="text" id="newDisplay" placeholder="表示名を入力">
+    <input type="text" id="newOutput" placeholder="出力名を入力">
+    <div class="info">🗣 出力時には自動で「ちゃん」が付くよ</div>
+    <div class="actions">
+      <button class="cancel" onclick="closeModal()">キャンセル</button>
+      <button class="submit" onclick="addMember()">登録する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let members = [
+  { display: "Hei", output: "へいちゃん" },
+  { display: "sabaris", output: "さばちゃん" },
+  { display: "Lapis", output: "ラピちゃん" },
+  { display: "TAMA", output: "たまちゃん" },
+  { display: "しばじろう", output: "しばちゃん" },
+  { display: "カイ", output: "カイちゃん" },
+];
+
+function saveMembers(){ localStorage.setItem("members",JSON.stringify(members)); }
+function loadMembers(){ const data = localStorage.getItem("members"); if(data) members = JSON.parse(data); renderGrid(); }
+
+/* 新規登録モーダル */
+function openModal(){ document.getElementById("modalOverlay").style.display="flex"; }
+function closeModal(){ document.getElementById("modalOverlay").style.display="none"; }
+function addMember(){
+  const d=document.getElementById("newDisplay").value.trim();
+  const o=document.getElementById("newOutput").value.trim();
+  if(!d||!o) return;
+  members.push({ display:d, output:o+"ちゃん" });
+  saveMembers(); renderGrid(); closeModal();
+}
+
+/* renderGrid */
+function renderGrid(){
+  const grid=document.getElementById("nameGrid"); grid.innerHTML="";
+  members.forEach((m,idx)=>{
+    const item=document.createElement("div"); item.className="nameItem";
+    const cb=document.createElement("input"); cb.type="checkbox"; cb.id="chk"+idx;
+    const label=document.createElement("label"); label.setAttribute("for","chk"+idx); label.textContent=m.display; label.style.marginLeft="6px";
+    item.appendChild(cb); item.appendChild(label); grid.appendChild(item);
+  });
+}
+
+/* 選択メンバー削除 */
+function deleteSelectedMembers(){
+  const checkboxes=document.querySelectorAll("#nameGrid input[type='checkbox']");
+  const toDelete=[];
+  checkboxes.forEach((cb,idx)=>{ if(cb.checked) toDelete.push(idx); });
+  if(toDelete.length===0) return;
+  if(!confirm("選択したメンバーを削除しますか？")) return;
+  for(let i=toDelete.length-1;i>=0;i--){ members.splice(toDelete[i],1); }
+  saveMembers(); renderGrid();
+}
+
+/* グループ作成：4人1グループランダム */
+function makeGroups(){
+  const selected = members.filter((m, idx) => document.getElementById("chk"+idx).checked);
+  if(selected.length===0){ alert("グループ分けするメンバーを選んでください"); return; }
+  const shuffled = selected.sort(()=>Math.random()-0.5);
+  let resultText=""; let groupNum=1;
+  for(let i=0;i<shuffled.length;i+=4){
+    const group=shuffled.slice(i,i+4).map(m=>m.output).join(" / ");
+    resultText+=`グループ ${groupNum}: ${group}\n`; groupNum++;
+  }
+  document.getElementById("result").innerText=resultText;
+}
+
+/* 履歴リセット */
+function resetResult(){ document.getElementById("result").innerText=""; }
+
+/* コピー */
+function copyResult(){ const t=document.getElementById("result").innerText; navigator.clipboard.writeText(t).then(()=>alert("コピーしました")); }
+
+loadMembers();
+</script>
+</body>
+</html>
